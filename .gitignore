@@ -1,0 +1,18 @@
+# --- Python ---
+**/__pycache__/
+**/*.py[cod]
+**/*.venv/
+venv/
+env/
+
+# --- Database & Backups ---
+*.db
+*.sqlite
+backups/*.sql
+
+# --- IDEs ---
+.vscode/
+.idea/
+
+# --- Logs ---
+*.log
