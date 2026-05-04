@@ -4,14 +4,15 @@ import os
 
 # Configuration
 DB_NAME = "CinemaDB"
-BACKUP_DIR = "../backups"
+BACKUP_DIR = "backups"
 TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 FILENAME = f"{DB_NAME}_backup_{TIMESTAMP}.sql"
 FILE_PATH = os.path.join(BACKUP_DIR, FILENAME)
+mysqldump_path = r"C:\Program Files\MySQL\MySQL Workbench 8.0 CE\mysqldump.exe"
 
 def run_backup():
     # 1. Execute mysqldump
-    dump_cmd = f"mysqldump -u root -p@0338048344 {DB_NAME} > {FILE_PATH}"
+    dump_cmd = f'"{mysqldump_path}" -u root -p@0338048344 {DB_NAME} > "{FILE_PATH}"'
     subprocess.run(dump_cmd, shell=True)
     
     # 2. Git commands for version control push
