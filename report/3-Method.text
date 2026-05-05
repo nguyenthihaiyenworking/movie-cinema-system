@@ -1,0 +1,307 @@
+This chapter details the technical implementation of the Movie and Cinema Management System, focusing on the synergy between a normalized MySQL backend and optimized Python modules. The project architecture is structured into specialized directories (\texttt{sql/}, \texttt{python/modules/}, and \texttt{scripts/}) to ensure modularity and scalability.
+
+% --- HÌNH 1: CẤU TRÚC THƯ MỤC ---
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\textwidth]{Images/project_structure.png}
+    \caption{Project Directory Structure and Modular Organization}
+    \label{fig:folder_struct}
+\end{figure}
+
+\subsection{Data Engineering and Concurrency Control}
+
+\subsubsection{Database Normalization (3NF)}
+To ensure data integrity and minimize redundancy, the relational schema in \texttt{sql/schema.sql} strictly adheres to the \textbf{Third Normal Form (3NF)}. Primary and Foreign keys are enforced across all entities—from \texttt{Genres} to \texttt{Tickets}—to prevent orphaned records and maintain referential integrity.
+
+\subsubsection{Data Dictionary}
+To provide a clear understanding of the internal structure, Table \ref{table:data_dictionary} details the primary entities responsible for transactional integrity and inventory management within the \texttt{CinemaDB}.
+
+% Lưu ý: Thêm \usepackage{booktabs, multirow} vào phần Preamble
+\begin{table}[ht]
+\centering
+\caption{Detailed Data Dictionary for Core Entities}
+\label{table:data_dictionary}
+\renewcommand{\arraystretch}{1.3} % Tăng khoảng cách dòng cho dễ đọc
+\begin{tabular}{@{}lllp{6cm}@{}}
+\toprule
+\textbf{Table} & \textbf{Column Name} & \textbf{Data Type} & \textbf{Description} \\ \midrule
+\multirow{4}{*}{\textbf{Seats}} & SeatID & INT (PK) & Unique identifier for each physical seat. \\
+ & RoomID & INT (FK) & Reference to the specific cinema hall. \\
+ & Status & ENUM & Current state: 'Available', 'Locked', or 'Sold'. \\
+ & LockedUntil & TIMESTAMP & Expiration time for temporary booking holds. \\ \addlinespace[0.3cm]
+
+\multirow{3}{*}{\textbf{Showtimes}} & ScreeningID & INT (PK) & Unique ID for a specific movie screening. \\
+ & ShowDate & DATETIME & The scheduled start time and date of the movie. \\
+ & BasePrice & DECIMAL(10,2) & The standard ticket price before surcharges. \\ \addlinespace[0.3cm]
+
+\multirow{3}{*}{\textbf{Tickets}} & TicketID & INT (PK) & Unique receipt and entry identifier. \\
+ & BookingTime & TIMESTAMP & Record of when the transaction was finalized. \\
+ & TotalPrice & DECIMAL(10,2) & Final price calculated by the Python backend. \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\clearpage % Buộc tất cả nội dung phía trên phải kết thúc và in ra hết
+\thispagestyle{plain}
+
+% Sử dụng môi trường trung gian để căn giữa tuyệt đối nếu cần
+\vspace*{\fill} 
+
+\begin{figure}[H]
+    \centering
+    % Tăng kích thước lên 1.1 nếu muốn to hơn vì trang đang trống
+    \includegraphics[width=1.0\textwidth]{Images/erd_diagram.png} 
+    \caption{Entity Relationship Diagram (ERD) - MySQL Workbench}
+    \label{fig:erd}
+\end{figure}
+
+\vspace*{\fill}
+\clearpage % Kết thúc trang ERD để nội dung sau không nhảy lên trang này
+
+\subsubsection{Technical Schema Rationale}
+The selection of specific SQL data types was driven by the need for precision and temporal accuracy in a high-concurrency environment:
+
+\begin{itemize}
+    \item \textbf{DECIMAL vs. FLOAT for Financial Data}: In the \texttt{Showtimes} and \texttt{Tickets} tables, the \texttt{DECIMAL(10,2)} type is strictly enforced for all monetary fields. Unlike \texttt{FLOAT} or \texttt{DOUBLE}, which use binary floating-point approximations and can lead to cumulative rounding errors (e.g., $0.1 + 0.2 \neq 0.3$), \texttt{DECIMAL} stores values as exact fixed-point numbers. This ensures 100\% financial accuracy during revenue aggregation and audit trails.
+    
+    \item \textbf{TIMESTAMP for Concurrency Control}: The \texttt{LockedUntil} column in the \texttt{Seats} table utilizes the \texttt{TIMESTAMP} data type to manage seat-locking sessions. This choice is critical for two reasons:
+    \begin{enumerate}
+        \item \textbf{Timezone Awareness}: It automatically converts values to UTC for storage and back to local time for the application, preventing discrepancies if the server and clients are in different regions.
+        \item \textbf{Temporal Logic}: It allows the Python backend to perform precise comparisons against the system's current time (e.g., \texttt{NOW()}), ensuring that expired locks are released exactly after the 15-minute threshold, thereby neutralizing race conditions.
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Role-Based Access Control (RBAC)}
+Security is implemented via \texttt{sql/security\_setup.sql}, applying the Principle of Least Privilege (PoLP). Access is segmented into specialized tiers:
+\begin{description}
+    \item[\textbf{Admin:}] Full system administration and schema modification rights.
+    \item[\textbf{Ticket Clerk:}] Restricted to transactional operations, seat status updates, and executing predefined procedures like \texttt{BookTicket}.
+    \item[\textbf{Reporting Team:}] Read-only access to specific views and analytical functions for business intelligence.
+\end{description}
+
+\subsubsection{Concurrency and Seat Locking Mechanism}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    % Định nghĩa lại style - Tớ đã thêm align=center vào TẤT CẢ các khối
+    base/.style={draw, text centered, minimum height=1cm, font=\small, align=center},
+    startstop/.style={base, rectangle, rounded corners, minimum width=3cm, fill=red!20},
+    process/.style={base, rectangle, minimum width=3.5cm, fill=blue!10, text width=4cm},
+    decision/.style={base, diamond, aspect=2, minimum width=3cm, fill=yellow!20},
+    arrow/.style={thick,->,>=stealth}
+]
+
+% Vẽ các Nodes
+\node (start) [startstop] {Start Booking};
+
+\node (check) [decision, below=1cm of start] {Is Seat\\Available?};
+
+\node (lock) [process, below=1cm of check] {UPDATE Status = 'Locked' \\ (LockedUntil = NOW + 15m)};
+
+\node (payment) [process, below=1cm of lock] {Process Payment};
+
+\node (final) [process, below=1cm of payment] {Create Ticket \& \\ UPDATE Status = 'Sold'};
+
+\node (fail) [startstop, right=1.5cm of check] {Stop \\ (Seat Occupied)};
+
+% Vẽ đường nối
+\draw [arrow] (start) -- (check);
+\draw [arrow] (check) -- node[left] {Yes} (lock);
+\draw [arrow] (check) -- node[above] {No} (fail);
+\draw [arrow] (lock) -- (payment);
+\draw [arrow] (payment) -- (final);
+
+\end{tikzpicture}
+\caption{Algorithmic Flowchart for Concurrency-Aware Seat Booking}
+\label{fig:booking_flow}
+\end{figure}
+
+As a high-concurrency system, handling simultaneous booking requests is critical to prevent "Double Booking". We implement a temporary row-level lock via \texttt{booking\_mgr.py} and the \texttt{seats} table:
+
+\begin{lstlisting}[language=SQL, caption=SQL Implementation for Seat Locking]
+-- Update status ONLY if the seat is currently available
+UPDATE seats 
+SET Status = 'Locked', 
+    LockedUntil = %s 
+WHERE SeatID = %s 
+  AND Status = 'Available';
+\end{lstlisting}
+
+The system utilizes a 15-minute expiration (\texttt{LockedUntil}). A pre-booking check function in the backend ensures that expired locks are released if a transaction remains unconfirmed.
+
+\subsection{Backend Logic and Business Intelligence}
+The backend logic is orchestrated through specialized Python modules to separate concerns and enhance maintainability.
+
+\subsubsection{Scheduling and Overlap Detection}
+The \texttt{movie\_mgr.py} module implements a robust overlap detection algorithm. A new screening is blocked if it violates the temporal boundaries of existing records in the same room:
+\begin{equation*}
+    (Start_{new} < End_{existing}) \wedge (End_{new} > Start_{existing})
+\end{equation*}
+
+\begin{lstlisting}[language=Python, caption={Python Implementation of Temporal Overlap Detection Logic}, label={lst:overlap_logic}, numbers=left, breaklines=true]
+def check_overlap(room_id, new_show_time, new_movie_duration, current_screening_id=None):
+    """
+    Validates scheduling conflicts based on the actual duration of the movie.
+    Ensures that no two screenings in the same room occupy the same time slot.
+    """
+    conn = get_connection()
+    if not conn: 
+        return False
+        
+    try:
+        cursor = conn.cursor(dictionary=True)
+        # Using SQL logic to detect boundary intersections
+        query = """
+            SELECT s.ScreeningID 
+            FROM screenings s
+            JOIN movies m ON s.MovieID = m.MovieID
+            WHERE s.RoomID = %s
+            AND s.ScreeningID != %s
+            AND (
+                (%s BETWEEN s.ShowDate AND DATE_ADD(s.ShowDate, INTERVAL m.DurationMinutes MINUTE))
+                OR 
+                (DATE_ADD(%s, INTERVAL %s MINUTE) BETWEEN s.ShowDate AND DATE_ADD(s.ShowDate, INTERVAL m.DurationMinutes MINUTE))
+            )
+        """
+        # Handle exclusion for update operations
+        exclude_id = current_screening_id if current_screening_id else -1
+        
+        cursor.execute(query, (room_id, exclude_id, new_show_time, new_show_time, new_movie_duration))
+        
+        # Returns True if an overlap is found, False otherwise
+        return cursor.fetchone() is not None
+    finally:
+        conn.close()
+\end{lstlisting}
+As illustrated in Listing~\ref{lst:overlap_logic}, the \texttt{check\_overlap} function acts as the core validation mechanism for the scheduling system. By utilizing the MySQL \texttt{DATE\_ADD} function, the system dynamically calculates the end times of existing screenings based on movie durations, thereby ensuring that temporal conflicts within any shared \texttt{RoomID} are effectively neutralized.
+
+\subsubsection{Revenue and Occupancy Analytics}
+The analytical engine in \texttt{report\_mgr.py} utilizes a hybrid computing approach:
+\begin{itemize}
+    \item \textbf{SQL Offloading}: Heavy aggregations, such as \texttt{SUM(TotalPrice)}, are offloaded to the MySQL engine via the \texttt{GetMovieRevenue} stored function to reduce data transfer overhead.
+    \item \textbf{Occupancy Metrics}: Calculated dynamically through User-Defined Functions (UDFs):
+    \begin{equation*}
+        \text{Occupancy Rate} = \left( \frac{\text{Sold Seats}}{\text{Total Room Capacity}} \right) \times 100\%
+    \end{equation*}
+\end{itemize}
+
+\subsection{Data Science Optimization and DevOps}
+
+\subsubsection{Memory and Storage Efficiency}
+In alignment with Data Science best practices, \texttt{database\_conn.py} implements specific optimizations:
+\begin{itemize}
+    \item \textbf{Pandas Downcasting}: Numeric fields are converted (e.g., \texttt{int64} to \texttt{int32}) to minimize RAM footprint during data ingestion.
+    \item \textbf{Parquet Transition}: Historical logs are archived using the \textbf{Parquet} format for efficient long-term storage and superior compression.
+\end{itemize}
+
+\subsubsection{Automated Disaster Recovery (DevOps)}
+The system features an automated pipeline managed by \texttt{scripts/auto\_backup.py}. This utility ensures 99.9\% data survivability through two primary stages:
+\begin{description}
+    \item[\textbf{Database Ingestion:}] The script invokes \texttt{mysqldump} to generate logical backups of the \texttt{CinemaDB} schema and transactional state.
+    \item[\textbf{Versioned Cloud Sync:}] Utilizing Git integration, backups are committed with unique timestamps (\texttt{YYYYMMDD\_HHMMSS}) to a private GitHub repository.
+\end{description}
+
+% Lưu ý: Cần \usetikzlibrary{shapes.geometric, arrows, positioning} ở Preamble
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    % Định nghĩa style an toàn cho mọi trình biên dịch
+    process/.style={
+        rectangle, 
+        minimum width=3cm, 
+        minimum height=1.2cm, 
+        text centered, 
+        draw=black, 
+        fill=blue!10, 
+        align=center, % Quan trọng nhất để fix lỗi LR mode khi dùng \\
+        text width=3.5cm,
+        font=\small
+    },
+    arrow/.style={thick, ->, >=stealth}
+]
+
+% Vẽ các nút (Nodes) dùng thư viện positioning để chuẩn xác hơn
+\node (step1) [process] {1. \texttt{mysqldump} \\ (Schema \& Data Ingestion)};
+
+\node (step2) [process, right = 0.7cm of step1] {2. Local Storage \\ (\texttt{backups/} folder)};
+
+\node (step3) [process, right = 0.7cm of step2] {3. Git Commit \\ (Timestamped Version)};
+
+\node (step4) [process, right = 0.7cm of step3] {4. GitHub Push \\ (Cloud Sync)};
+
+% Vẽ các đường nối (Arrows)
+\draw [arrow] (step1) -- (step2);
+\draw [arrow] (step2) -- (step3);
+\draw [arrow] (step3) -- (step4);
+
+\end{tikzpicture}
+\caption{Automated Data Survivability Pipeline}
+\label{fig:backup_pipeline}
+\end{figure}
+
+% --- HÌNH 4: BACKUP LOGS & GIT HISTORY ---
+\begin{figure}[H]
+    \centering
+    % Hình phía trên (Backup Logs)
+    \begin{subfigure}{0.8\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Images/backup_logs.png} 
+        \caption{Automated Backup Logs}
+        \label{fig:backup_logs}
+    \end{subfigure}
+    
+    \vspace{1cm} % Tạo khoảng cách giữa hình trên và hình dưới
+    
+    % Hình phía dưới (Git History)
+    \begin{subfigure}{0.75\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Images/git_history.png} 
+        \caption{GitHub Versioning History}
+        \label{fig:git_history}
+    \end{subfigure}
+    
+    \caption{System Automated Backup and Version Control Management}
+    \label{fig:backup_git_management}
+\end{figure}
+
+\section{User Interface Design and Experience}
+This section outlines the front-end architecture of the system, focusing on how the interface translates complex back-end logic into an intuitive operational tool for cinema staff.
+
+\subsection{Design Principles for Operational Efficiency}
+The graphical user interface (GUI), developed using Streamlit, is engineered with a \textbf{Minimalist Design} philosophy. Given that the primary users are ticket clerks operating under high-pressure, high-concurrency environments at cinema counters, the interface focuses on:
+
+\begin{itemize}
+    \item \textbf{Visual Hierarchy}: Using high-contrast color coding for seat statuses (e.g., Green for Available, Red for Sold, and Amber for Locked) to allow for instantaneous recognition of room occupancy.
+    \item \textbf{Click-to-Action Optimization}: Reducing the "Number of Clicks to Sale" by integrating the seat selection map directly with the booking confirmation module.
+    \item \textbf{Scoping and Focus}: Utilizing custom CSS to isolate the seat map, ensuring that navigation elements do not distract the staff during the critical checkout phase.
+\end{itemize}
+
+\subsection{State Management and Session Persistence}
+A significant technical challenge in web-based management systems is maintaining data continuity during user interactions, such as filtering movies or switching cinema halls. To solve this, the system implements \textbf{Streamlit Session State} as the primary persistence layer:
+
+\begin{itemize}
+    \item \textbf{Temporary Storage}: Selections such as \texttt{selected\_seats} and \texttt{current\_screening\_id} are stored in the \texttt{st.session\_state} dictionary. This ensures that when the script reruns—triggered by a UI widget change—the user's progress is not reset.
+    \item \textbf{Dynamic Synchronization}: When a staff member switches between different cinema rooms, the system performs a "State Clean-up" to prevent cross-contamination of seat IDs while retaining the staff's authentication status.
+    \item \textbf{Backend-Frontend Bridge}: This state management allows the system to hold a seat in a "Locked" state in the MySQL database while the staff continues to add additional tickets or snacks within the same session.
+\end{itemize}
+\subsection{Interface Visualization}
+The theoretical principles of design and state management are realized in the following interface implementations:
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Images/ui_main.png}
+        \caption{Staff POS Interface with Color-coded Seat Map}
+        \label{fig:ui_main}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.5\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Images/session_state.png}
+        \caption{Real-time Seat Locking Feedback and State Persistence}
+        \label{fig:session_state}
+    \end{minipage}
+\end{figure}
+
+As shown in Figure \ref{fig:ui_main}, the high-contrast grid allows staff to identify available capacity instantly. Furthermore, Figure \ref{fig:session_state} demonstrates how the system maintains the \texttt{st.session\_state} even when the staff toggles sidebar filters, ensuring a seamless booking experience without data loss.

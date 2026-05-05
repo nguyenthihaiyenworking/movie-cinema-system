@@ -1,0 +1,119 @@
+\subsection{Problem Statement and Data-Driven Objectives}
+
+\subsubsection{Problem Statement}
+Traditional cinema management often relies on fragmented manual processes or legacy systems that fail to ensure data integrity. A significant challenge identified is the lack of a structured, historical data foundation. Without a centralized repository, operational data—such as occupancy rates and ticket sales—becomes siloed, making it impossible to perform long-term trend analysis or accurate financial forecasting.
+
+\subsubsection{Objectives}
+The primary objective of this project is to develop an integrated management ecosystem that transcends mere operational utility. Specifically, the system aims to:
+\begin{itemize}
+    \item \textbf{Operational Automation}: Streamline ticket sales, seat management, and screening schedules through a robust full-stack application.
+    \item \textbf{Data Integrity}: Implement a 3NF-normalized database to eliminate redundancy and provide a "Single Source of Truth."
+    \item \textbf{High-Availability Data Foundation}: Build a clean, optimized data pipeline (via Pandas and Parquet) that prepares historical datasets for future Predictive Analytics, such as movie demand forecasting and dynamic pricing.
+    \item \textbf{Survivability}: Ensure data security through automated DevOps pipelines, synchronizing local states with cloud-based versioning.
+\end{itemize}
+
+\subsection{Project Motivation and Business Intelligence}
+In the modern cinematic industry, the transition from manual management to automated, data-driven systems is no longer an option but a strategic necessity. The \textbf{"Movie and Cinema Room Management System"} (Project 08) was conceived to address the critical challenges of operational scalability and financial transparency. 
+
+The primary motivation is to transform raw transactional data into actionable insights through:
+\begin{itemize}
+    \item \textbf{Revenue Maximization}: Detailed multidimensional analysis of revenue streams across movie genres, seat tiers (Standard, VIP, Sweetbox), and room classifications (2D, 3D, IMAX).
+    \item \textbf{Operational Efficiency}: Leveraging real-time "Occupancy Rate" (Fill Rate) metrics to optimize screening schedules and resource allocation.
+    \item \textbf{Customer Lifetime Value (CLV)}: Implementing tracking mechanisms to identify and rank "Top Customers," providing a foundation for targeted loyalty programs[cite: 1].
+\end{itemize}
+
+\subsection{System Features and Functional Architecture}
+
+% --- PHẦN CHÈN HÌNH ẢNH (PDF) ---
+\begin{figure}[htbp]
+    \centering
+    % width=0.9\textwidth giúp hình tự động scale vừa với 90% chiều rộng trang giấy. 
+    % File PDF sẽ giữ nguyên độ nét của các đường vector.
+    \includegraphics[width=0.9\textwidth]{Images/system_architecture.jpg} 
+    \caption{Integrated System Architecture and Automated Workflow}
+    \label{fig:system_arch}
+\end{figure}
+
+% --- ĐOẠN VĂN GIẢI THÍCH SƠ ĐỒ ---
+The architectural framework of the system, as visualized in Figure \ref{fig:system_arch}, is designed following the \textbf{Three-Tier Architecture} model to ensure high availability and data integrity. 
+
+\begin{itemize}
+    \item \textbf{Presentation Layer}: Built with Streamlit to provide a reactive web interface for both staff operations (Interactive POS) and administrative oversight (Dashboards).
+    \item \textbf{Logic Layer}: Powered by Python and SQLAlchemy ORM, which manages the communication between the UI and the data engine. This layer leverages Pandas for memory-efficient data processing.
+    \item \textbf{Data \& DevOps Layer}: The system utilizes a MySQL 8.4 instance structured in 3rd Normal Form (3NF)[cite: 1]. To guarantee disaster recovery, an automated backup service performs daily \texttt{mysqldump} operations, synchronizing versioned backups to a private GitHub repository[cite: 1].
+\end{itemize}
+
+The system is engineered as a high-performance, dual-role system designed for distinct user roles with strict Role-Based Access Control (RBAC)[cite: 1].
+
+\subsubsection{The Administrative Strategic Command (Admin)}
+The Admin module serves as the core intelligence hub, focusing on data integrity and high-level oversight[cite: 1]:
+\begin{itemize}
+    \item \textbf{Heuristic Dashboard}: A centralized interface for visualizing KPIs, including daily revenue graphs and room occupancy heatmaps[cite: 1].
+    \item \textbf{Advanced Infrastructure Management}: Features an intelligent "Copy Layout" algorithm, allowing for the rapid replication of complex seat configurations across multiple cinema halls[cite: 1].
+    \item \textbf{Data Guarding Logic}: Employs preventive mechanisms such as \texttt{has\_future\_screenings} and \texttt{check\_overlap} to ensure zero scheduling conflicts and protect active screening data[cite: 1].
+    \item \textbf{System Audit Trail}: A comprehensive logging subsystem that captures every state change (INSERT, UPDATE, DELETE) with detailed metadata (Timestamp, UserID, TableName) for forensic accountability[cite: 1].
+\end{itemize}
+
+% --- PHẦN CHÈN HÌNH ẢNH DASHBOARD ---
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=0.95\textwidth]{Images/dashboard.pdf}
+    \caption{Admin Dashboard Preview: Real-time Revenue Analytics and Customer Insights}
+    \label{fig:admin_dashboard}
+\end{figure}
+
+% --- ĐOẠN VĂN MÔ TẢ TÍNH THÔNG MINH CỦA HỆ THỐNG ---
+As demonstrated in Figure \ref{fig:admin_dashboard}, the Dashboard provides a high-level Business Intelligence (BI) overview. The system automatically aggregates transactional data to visualize key metrics:
+\begin{itemize}
+    \item \textbf{Dynamic Revenue Charts}: Visualizes financial performance by movie and seat tier, allowing for immediate identification of high-yield content.
+    \item \textbf{Automated Customer Ranking}: Utilizes SQL aggregation to identify top-tier customers based on booking frequency, supporting data-driven loyalty strategies.
+    \item \textbf{Live Occupancy Tracking}: Displays the percentage of seats sold per screening, calculated dynamically through back-end UDFs (User-Defined Functions).
+\end{itemize}
+
+\subsubsection{The Operational Sales Interface (Staff)}
+Optimized for high-concurrency environments at the ticket counter[cite: 1]:
+\begin{itemize}
+    \item \textbf{Interactive POS System}: A visual seat map utilizing custom CSS scoping to bypass standard UI constraints, providing an intuitive "What-You-See-Is-What-You-Get" booking experience[cite: 1].
+    \item \textbf{Concurrency Control}: Implements a temporary 15-minute "Hold" state (\texttt{LockedUntil}) at the database level to prevent race conditions during peak hours[cite: 1].
+    \item \textbf{Dynamic Pricing Engine}: Real-time calculation of ticket totals by aggregating base seat prices with room-specific surcharges[cite: 1].
+\end{itemize}
+
+\subsection{Technology Stack}
+To ensure the system's scalability and efficiency in handling data, the following technology stack was selected for development and deployment:
+
+% Nhớ thêm \usepackage{booktabs} vào phần Preamble nhé
+\begin{table}[ht]
+\centering
+\caption{System Technology Stack}
+\label{table:tech_stack}
+\renewcommand{\arraystretch}{1.2} % Tăng khoảng cách dòng cho thoáng
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Category} & \textbf{Technology/Tool} & \textbf{Primary Purpose} \\ \midrule
+\textbf{Backend} & Python 3.10+, MySQL 8.0 & Core logic and relational data storage. \\ \addlinespace[0.2cm]
+\textbf{Libraries} & Pandas & Memory-efficient data processing and cleaning. \\
+                   & Streamlit & Rapid development of the web-based GUI. \\
+                   & MySQL-Connector & Interface between Python and the database. \\ \addlinespace[0.2cm]
+\textbf{DevOps \& Tools} & Git \& GitHub Desktop & Version control and cloud synchronization. \\
+                         & VS Code & Integrated Development Environment (IDE). \\
+                         & MySQL Workbench & Database design (ERD) and management. \\ \bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Development Methodology and Full-Stack Ownership}
+As the sole architect and developer, I adopted an \textbf{Iterative Full-Stack Development} methodology. This involved:
+\begin{enumerate}
+    \item \textbf{Schema Engineering}: Designing a 3NF relational database in MySQL to ensure data consistency and eliminate redundancy[cite: 1].
+    \item \textbf{Performance Optimization}: Implementing memory-efficient data processing via Pandas downcasting and adopting the Parquet format for optimized historical logging[cite: 1].
+    \item \textbf{Security \& Reliability}: Establishing an automated daily backup service (Git-synced) to guarantee data survivability[cite: 1].
+\end{enumerate}
+
+\subsection{Deliverables}
+To demonstrate the project's outcomes, all relevant documentation and source code are organized and delivered in the following formats:
+
+\begin{itemize}
+    \item \textbf{Technical Report:} A PDF document providing a detailed presentation of the project, ranging from requirements analysis and database design to system interface implementation.
+    \item \textbf{Source Code:} The complete source code, including the Data Definition Language (SQL) and interface logic (Streamlit), is hosted on GitHub at: \url{https://github.com/nguyenthihaiyenworking/movie-cinema-system}.
+    \item \textbf{Sample Data:} The project includes a \path{sample_data.sql} file with over 500 records per table, allowing for rigorous stress testing and system verification.
+\end{itemize}

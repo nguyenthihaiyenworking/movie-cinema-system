@@ -1,0 +1,39 @@
+While the current system fulfills the core requirements of cinema management, several areas for further enhancement have been identified during the evaluation phase.
+
+\subsection{Current Limitations}
+The current implementation relies on a local MySQL instance. In a real-world production environment, shifting to a distributed cloud database (e.g., AWS RDS) would be necessary to handle higher traffic loads and ensure global availability. Additionally, the GUI currently focuses on core employee tasks and could be expanded for a more comprehensive customer experience.
+
+\subsection{Future Enhancements}
+While the current system fulfills core requirements, the following technical advancements are planned for future iterations to evolve the utility into a robust digital ecosystem:
+
+\begin{itemize}
+    \item \textbf{Security Hardening (Bcrypt)}: To ensure professional-grade security, future updates will implement password hashing using the \texttt{Bcrypt} algorithm, replacing plain-text or simple storage with a salted, computationally intensive one-way hash.
+    
+    \item \textbf{Scalability and Containerization (Docker)}: To streamline deployment and ensure environmental consistency across different operating systems, the application will be containerized using \textbf{Docker}. This allows for rapid scaling and simplifies the transition from a local development environment to a cloud-based infrastructure.
+    
+    \item \textbf{AI-Driven Predictive Analytics}: Leveraging the "clean data foundation" established in this version, future movie demand forecasting will utilize Machine Learning models to analyze historical occupancy rates, enabling dynamic ticket pricing and optimized screening schedules.
+    
+    \item \textbf{Payment and Mobility}: Integrating secure API connections with third-party payment providers (e.g., VNPay, MoMo) and developing a cross-platform mobile interface to enhance customer accessibility.
+\end{itemize}
+
+\newpage
+\begin{thebibliography}{99}
+
+
+\bibitem{mysql} 
+Oracle. (2026). \textit{MySQL 8.4 Reference Manual}. 
+Available at: \url{https://dev.mysql.com/doc/}
+
+\bibitem{pandas} 
+The Pandas Development Team. (2026). \textit{Pandas: Powerful data structures for data analysis, time series, and statistics}. 
+Available at: \url{https://pandas.pydata.org/}
+
+\bibitem{streamlit} 
+Streamlit Inc. (2026). \textit{Streamlit Documentation - Session State and Component Scoping}. 
+Available at: \url{https://docs.streamlit.io/}
+
+\bibitem{database} 
+C.J. Date. (2004). \textit{An Introduction to Database Systems}. 
+8th Edition. Pearson/Addison Wesley.
+
+\end{thebibliography}
